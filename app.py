@@ -35,7 +35,7 @@ def create():
         form = request.form
         params = {
             "title" : form['title'],
-            "content" : form.get('title', ''),
+            "content" : form.get('content', ''),
             "folder_id" : form.get('folder_id', ''),
         }
         if not params['folder_id']:
@@ -44,6 +44,34 @@ def create():
         sql = f"insert into notes (`title`, `content`, `folder_id`) values(:title, :content, :folder_id)"
         
         db.session.execute(sql, params)
+        db.session.commit()
+        return redirect(url_for('index'))
+
+@app.route("/update/<int:id>", methods=['GET', 'POST'])
+def update(id):
+
+    if request.method == 'GET':
+
+        folders_sql = "Select * from folder"
+        folders = db.session.execute(folders_sql)
+        note_sql = "Select * from notes where id= :id"
+        note = db.session.execute(note_sql, {"id":id}).fetchone()
+        return render_template('update.html', folders = folders, note = note)
+    elif request.method == 'POST':
+
+        form = request.form
+        params = {
+            "title" : form['title'],
+            "content" : form.get('content', ''),
+            "folder_id" : form.get('folder_id', ''),
+            "id": id,
+        }
+        if not params['folder_id']:
+            params['folder_id'] = None
+        
+        sql = f"update notes set title=:title, content=:content, folder_id=:folder_id where id=:id"
+        
+        res = db.session.execute(sql, params)
         db.session.commit()
         return redirect(url_for('index'))
 
