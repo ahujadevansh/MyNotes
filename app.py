@@ -57,8 +57,7 @@ def update(id):
         note_sql = "Select * from notes where id= :id and deleted_at is null"
         note = db.session.execute(note_sql, {"id":id}).fetchone()
         if not note:
-            message = "404 Not Found"
-            return render_template("404.html", message= message)
+            return redirect(url_for('error', code=404))
         return render_template('update.html', folders = folders, note = note)
     elif request.method == 'POST':
 
@@ -80,11 +79,21 @@ def update(id):
 
 @app.route("/delete/<int:id>")
 def delete(id):
-
-    sql = f"update notes set deleted_at = now() where id=:id"
-    db.session.execute(sql, {"id": id})
-    db.session.commit()
+    try:
+        sql = f"update notes set deleted_at = now() where id=:id"
+        db.session.execute(sql, {"id": id})
+        db.session.commit()
+    except (Exception):
+        return redirect(url_for('error', code=404))
     return redirect(url_for('index'))
+
+
+@app.route("/error/<code>")
+def error(code):
+    codes = {
+        "404": "404 Not Found",
+    }
+    return render_template("error.html", message = codes.get(code, "Invalid Request"))
 
 
 if __name__ == "__main__":
