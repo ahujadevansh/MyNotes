@@ -56,8 +56,10 @@ def update(id):
         folders = db.session.execute(folders_sql)
         note_sql = "Select * from notes where id= :id and deleted_at is null"
         note = db.session.execute(note_sql, {"id":id}).fetchone()
+
         if not note:
             return redirect(url_for('error', code=404))
+        
         return render_template('update.html', folders = folders, note = note)
     elif request.method == 'POST':
 
@@ -77,15 +79,20 @@ def update(id):
         db.session.commit()
         return redirect(url_for('index'))
 
-@app.route("/delete/<int:id>")
-def delete(id):
-    try:
-        sql = f"update notes set deleted_at = now() where id=:id"
-        db.session.execute(sql, {"id": id})
-        db.session.commit()
-    except (Exception):
-        return redirect(url_for('error', code=404))
-    return redirect(url_for('index'))
+@app.route("/delete", methods=['POST'])
+def delete():
+
+    if request.method == 'POST':
+        try:
+            id = request.form.get('id', None)
+            if not id:
+                return redirect('error', code=404)
+            sql = f"update notes set deleted_at = now() where id=:id"
+            db.session.execute(sql, {"id": id})
+            db.session.commit()
+        except (Exception):
+            return redirect(url_for('error', code=404))
+        return redirect(url_for('index'))
 
 
 @app.route("/error/<code>")

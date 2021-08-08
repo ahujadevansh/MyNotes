@@ -40,7 +40,13 @@
           <hr class="my-1">
           <div class="row justify-content-end">
             <a href="{{ url_for('update', id=note.id) }}" class="btn btn-primary mr-2">Edit</a>
-            <a href="#" class="btn btn-danger">Delete</a>
+            
+            <form action="{{ url_for('delete') }}" method="post">
+                <input type="hidden" name="id" value="{{ note.id }}">
+                <button type="submit" class="btn btn-danger">Delete</button>
+
+            </form>
+            
           </div>
         </div>
       {% endfor %}

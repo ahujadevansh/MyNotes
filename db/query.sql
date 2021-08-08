@@ -31,9 +31,9 @@ insert into notes  (`title`, `content`) values
 ('Note 3', 'This is my third node'),
 ('Note 4', 'This is my Fourth node');
 
+select * from notes;
 
-
-
+update notes set deleted_at = null where id > 0;
 
 
 
