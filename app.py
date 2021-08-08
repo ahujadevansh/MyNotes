@@ -16,7 +16,7 @@ db = SQLAlchemy(app)
 
 @app.route("/")
 def index():
-    notes_sql = "Select * from notes"
+    notes_sql = "Select * from notes where deleted_at is null"
     notes = db.session.execute(notes_sql)
     # print(type(notes))
     # for note in notes:
@@ -54,8 +54,11 @@ def update(id):
 
         folders_sql = "Select * from folder"
         folders = db.session.execute(folders_sql)
-        note_sql = "Select * from notes where id= :id"
+        note_sql = "Select * from notes where id= :id and deleted_at is null"
         note = db.session.execute(note_sql, {"id":id}).fetchone()
+        if not note:
+            message = "404 Not Found"
+            return render_template("404.html", message= message)
         return render_template('update.html', folders = folders, note = note)
     elif request.method == 'POST':
 
@@ -75,6 +78,13 @@ def update(id):
         db.session.commit()
         return redirect(url_for('index'))
 
+@app.route("/delete/<int:id>")
+def delete(id):
+
+    sql = f"update notes set deleted_at = now() where id=:id"
+    db.session.execute(sql, {"id": id})
+    db.session.commit()
+    return redirect(url_for('index'))
 
 
 if __name__ == "__main__":
