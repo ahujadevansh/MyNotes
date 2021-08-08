@@ -94,6 +94,9 @@ def delete():
             return redirect(url_for('error', code=404))
         return redirect(url_for('index'))
 
+@app.route('/thrash')
+def thrash():
+    pass
 
 @app.route("/error/<code>")
 def error(code):
