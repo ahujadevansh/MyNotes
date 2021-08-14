@@ -1,6 +1,8 @@
+from operator import methodcaller
 from flask import Flask, render_template, request, redirect
 from flask.helpers import url_for
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import session
 
 db_user = "root"
 db_pass = "root"
@@ -28,6 +30,25 @@ class Users(db.Model):
     def __str__(self):
         return f"{self.username}"
 
+@app.route("/register", methods=['GET', 'POST'])
+def register():
+    if request.method == 'GET':
+        return render_template("register.html")
+    elif request.method == 'POST':
+        
+        form = request.form
+        name = form.get('name', None)
+        username = form.get('username', None)
+        password = form.get('password', None)
+        if (username and name and password):
+            user = Users(username, password, name)
+            db.session.add(user)
+            db.session.commit()
+        return redirect(url_for("login"))
+
+@app.route("/login", methods=['GET', 'POST'])
+def login():
+    return render_template("login.html")
 
 
 @app.route("/")
