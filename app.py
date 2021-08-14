@@ -13,6 +13,22 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
+class Users(db.Model):
+
+    id = db.Column(db.Integer(), primary_key=True)
+    username = db.Column(db.String(100), unique=True)
+    password = db.Column(db.String(100))
+    name = db.Column(db.String(100))
+
+    def __init__(self, username, password, name):
+        self.username = username
+        self.password = password
+        self.name = name
+
+    def __str__(self):
+        return f"{self.username}"
+
+
 
 @app.route("/")
 def index():
@@ -108,3 +124,4 @@ def error(code):
 
 if __name__ == "__main__":
     app.run(debug=True)
+    db.create_all()
