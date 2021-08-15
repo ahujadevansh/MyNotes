@@ -1,8 +1,8 @@
-from operator import ge, methodcaller
-from flask import Flask, render_template, request, redirect, flash
+from functools import wraps
+
+from flask import Flask, render_template, request, redirect, flash, session
 from flask.helpers import url_for
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import session
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db_user = "root"
@@ -42,6 +42,19 @@ class Users(db.Model):
     def __str__(self):
         return f"{self.username}"
 
+def login_required(func):
+
+    @wraps(func)
+    def wrapper_func(*args, **kwargs):
+        if not 'user' in session:
+            flash("Please Login First", "warning")
+            return redirect(url_for('login'))
+        else:
+            return func(*args, **kwargs)
+    
+    return wrapper_func
+    
+
 @app.route("/register", methods=['GET', 'POST'])
 def register():
     if request.method == 'GET':
@@ -78,7 +91,7 @@ def login():
         if(Users.exists(username)):
             user = Users.get_user_by_username(username)
             if (check_password_hash(user.password, password)):
-                 
+                session['user'] = user.id
                 flash("You are Logged in", "success")
                 return redirect(url_for('index'))
             else:
@@ -88,13 +101,16 @@ def login():
                 flash("Incorrect user credentials", "info")
                 return redirect(url_for('login'))
 
-
-            
-
-
-
+@app.route("/logout")
+@login_required
+def logout():
+    if 'user' in session:
+        session.pop('user')
+    flash("Logged out successfully", "success")
+    return redirect(url_for('login'))
 
 @app.route("/")
+@login_required
 def index():
     notes_sql = "Select * from notes where deleted_at is null"
     notes = db.session.execute(notes_sql)
@@ -104,6 +120,7 @@ def index():
     return render_template('index.html', notes = notes)
 
 @app.route("/create", methods=['GET', 'POST'])
+@login_required
 def create():
 
     if request.method == 'GET':
@@ -128,6 +145,7 @@ def create():
         return redirect(url_for('index'))
 
 @app.route("/update/<int:id>", methods=['GET', 'POST'])
+@login_required
 def update(id):
 
     if request.method == 'GET':
@@ -160,6 +178,7 @@ def update(id):
         return redirect(url_for('index'))
 
 @app.route("/delete", methods=['POST'])
+@login_required
 def delete():
 
     if request.method == 'POST':
