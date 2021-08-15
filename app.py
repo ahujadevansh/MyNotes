@@ -1,9 +1,14 @@
+from operator import truediv
+import uuid
+
+from datetime import date, datetime, timedelta
 from functools import wraps
 
-from flask import Flask, render_template, request, redirect, flash, session
-from flask.helpers import url_for
+from flask import Flask, render_template, request,  redirect, flash, session, make_response
+from flask.helpers import make_response, url_for
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.wrappers import response
 
 db_user = "root"
 db_pass = "root"
@@ -42,15 +47,62 @@ class Users(db.Model):
     def __str__(self):
         return f"{self.username}"
 
+class Token(db.Model):
+
+    EXPIRE_AFTER = timedelta(hours=24)
+
+    id = db.Column(db.Integer(), primary_key=True)
+    token = db.Column(db.String(256), unique=True, nullable=False)
+    expires_At = db.Column(db.DateTime(), nullable=False)
+    user_id = db.Column(db.Integer(), db.ForeignKey("users.id"), nullable=False)
+
+    def __init__(self, user_id, token, expires_at) -> None:
+        super().__init__()
+        self.user_id = user_id
+        self.token = token
+        self.expires_At = expires_at
+    
+    @staticmethod
+    def create_token(user_id):
+
+        token = Token(user_id, uuid.uuid4(), datetime.now() + timedelta(minutes=30))
+        db.session.add(token)
+        db.session.commit()
+
+        return token.token
+
+    @staticmethod
+    def is_valid(token):
+
+        token_db = Token.query.filter_by(token=token).first()
+        if token_db and token_db.expires_At > datetime.now():
+            return True
+        return False
+    
+    @staticmethod
+    def get_user_id_from_token(token):
+        token_db = Token.query.filter_by(token=token).first()
+        if token_db:
+            return token_db.user_id
+        return None
+
+
 def login_required(func):
 
     @wraps(func)
     def wrapper_func(*args, **kwargs):
-        if not 'user' in session:
-            flash("Please Login First", "warning")
-            return redirect(url_for('login'))
-        else:
+        if 'user' in session:
             return func(*args, **kwargs)
+        if request.cookies.get('token'):
+            token = request.cookies.get('token')
+            if(Token.is_valid(token)):
+                user_id = Token.get_user_id_from_token(token)
+                if(user_id):
+                    session['user'] = user_id
+                    return func(*args, **kwargs)
+        
+        flash("Please Login First", "warning")
+        return redirect(url_for('login'))
     
     return wrapper_func
     
@@ -93,7 +145,11 @@ def login():
             if (check_password_hash(user.password, password)):
                 session['user'] = user.id
                 flash("You are Logged in", "success")
-                return redirect(url_for('index'))
+                response = make_response(redirect(url_for('index')))
+                if (form.get('remember_me', None)):
+                    token = Token.create_token(user.id)
+                    response.set_cookie('token', token, max_age = 60 * 30)
+                return response
             else:
                 flash("Incorrect Password", "info")
                 return redirect(url_for('login'))
@@ -104,10 +160,14 @@ def login():
 @app.route("/logout")
 @login_required
 def logout():
+    response = make_response(redirect(url_for('login')))
     if 'user' in session:
-        session.pop('user')
+        user_id = session.pop('user')
+        response.set_cookie('token', '', max_age=-1)
+        db.session.execute("delete from token where user_id = :user_id", {"user_id": user_id})
+        db.session.commit()
     flash("Logged out successfully", "success")
-    return redirect(url_for('login'))
+    return response
 
 @app.route("/")
 @login_required
