@@ -35,7 +35,7 @@ select * from notes;
 
 update notes set deleted_at = null where id > 0;
 
-select * from users;
+select * from token;
 drop table users;
 
 

@@ -9,6 +9,8 @@ from flask.helpers import make_response, url_for
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.wrappers import response
+# pip install flask_wtf
+from flask_wtf import CSRFProtect
 
 db_user = "root"
 db_pass = "root"
@@ -20,6 +22,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = "50f566bc-b84c-435f-82ef-7bb99162f1a1"
 
 db = SQLAlchemy(app)
+csrf = CSRFProtect()
+csrf.init_app(app)
 
 class Users(db.Model):
 
@@ -172,7 +176,8 @@ def logout():
 @app.route("/")
 @login_required
 def index():
-    notes_sql = "Select * from notes where deleted_at is null"
+    user_id = session.get('user', None)
+    notes_sql = f"Select * from notes where deleted_at is null and user_id={user_id}"
     notes = db.session.execute(notes_sql)
     # print(type(notes))
     # for note in notes:
@@ -184,21 +189,23 @@ def index():
 def create():
 
     if request.method == 'GET':
-        folders_sql = "Select * from folder"
+          
+        folders_sql = f"Select * from folder"
         folders = db.session.execute(folders_sql)
         return render_template('create.html', folders = folders)
     elif request.method == 'POST':
-
+        user_id = session.get('user', None)
         form = request.form
         params = {
             "title" : form['title'],
             "content" : form.get('content', ''),
             "folder_id" : form.get('folder_id', ''),
+            "user_id": user_id,
         }
         if not params['folder_id']:
             params['folder_id'] = None
         
-        sql = f"insert into notes (`title`, `content`, `folder_id`) values(:title, :content, :folder_id)"
+        sql = f"insert into notes (`title`, `content`, `folder_id`, `user_id`) values(:title, :content, :folder_id, :user_id)"
         
         db.session.execute(sql, params)
         db.session.commit()
@@ -207,16 +214,19 @@ def create():
 @app.route("/update/<int:id>", methods=['GET', 'POST'])
 @login_required
 def update(id):
+    note_sql = "Select * from notes where id= :id and deleted_at is null"
+    note = db.session.execute(note_sql, {"id":id}).fetchone()
 
+    if not note:
+        return redirect(url_for('error', code=404))
+    
+    user_id = session.get('user', None)
+    if note.user_id != user_id:
+        return redirect(url_for('error', code=403))
+    
     if request.method == 'GET':
-
         folders_sql = "Select * from folder"
         folders = db.session.execute(folders_sql)
-        note_sql = "Select * from notes where id= :id and deleted_at is null"
-        note = db.session.execute(note_sql, {"id":id}).fetchone()
-
-        if not note:
-            return redirect(url_for('error', code=404))
         
         return render_template('update.html', folders = folders, note = note)
     elif request.method == 'POST':
@@ -228,6 +238,7 @@ def update(id):
             "folder_id" : form.get('folder_id', ''),
             "id": id,
         }
+        
         if not params['folder_id']:
             params['folder_id'] = None
         
@@ -240,12 +251,21 @@ def update(id):
 @app.route("/delete", methods=['POST'])
 @login_required
 def delete():
-
+    
     if request.method == 'POST':
         try:
             id = request.form.get('id', None)
             if not id:
                 return redirect('error', code=404)
+            user_id = session.get('user', None)
+            note_sql = "Select * from notes where id= :id and deleted_at is null"
+            note = db.session.execute(note_sql, {"id":id}).fetchone()
+
+            if not note:
+                return redirect(url_for('error', code=404))
+            if note.user_id != user_id:
+                return redirect(url_for('error', code=403))
+    
             sql = f"update notes set deleted_at = now() where id=:id"
             db.session.execute(sql, {"id": id})
             db.session.commit()
@@ -260,6 +280,7 @@ def thrash():
 @app.route("/error/<code>")
 def error(code):
     codes = {
+        "403": "403 forbidden",
         "404": "404 Not Found",
     }
     return render_template("error.html", message = codes.get(code, "Invalid Request"))
